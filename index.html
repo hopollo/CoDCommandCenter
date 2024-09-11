@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Call of Dragons Command Center</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, minimum-scale=1.0"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <div class="bg-red-700 p-2 mb-2">
+      <h1 class="text-4xl font-bold text-center">
+        Call Of Dragons, Command Center
+      </h1>
+    </div>
+
+    <form class="flex items-center justify-center gap-1 mb-2">
+      <label for="broadcast-id">Create a room :</label>
+
+      <input
+        class="p-2 border rounded text-center"
+        type="text"
+        id="broadcast-id"
+        placeholder="Enter a room name"
+        autofocus="true"
+        autocorrect="off"
+        autocapitalize="off"
+        size="20"
+      />
+
+      <button
+        id="open-or-join"
+        class="rounded bg-green-700 p-2 text-white font-semibold"
+        type="submit"
+      >
+        Start
+      </button>
+    </form>
+
+    <div>
+      <div id="members-counter"></div>
+    </div>
+
+    <div class="flex items-center justify-center">
+      <audio id="audio-preview" controls></audio>
+    </div>
+
+    <div class="px-2 border rounded">
+      <ol id="messages-container"></ol>
+
+      <div>
+        <input
+          class="rounded border p-1"
+          id="message-input"
+          type="text"
+          placeholder="Type your message...."
+        />
+        <button
+          id="send-message-button"
+          class="bg-blue-600 hover:bg-blue-700 rounded p-1 text-white font-semibold"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+
+    <script src="https://muazkhan.com:9001/dist/RTCMultiConnection.min.js"></script>
+    <script src="https://muazkhan.com:9001/socket.io/socket.io.js"></script>
+    <script src="./main.js"></script>
+  </body>
+</html>
+
