@@ -21,7 +21,7 @@ connection.autoCloseEntireSession = true;
 connection.socketURL = "https://muazkhan.com:9001/";
 
 //do i need this ?
-//connection.socketMessageEvent = "scalable-media-broadcast-demo";
+connection.socketMessageEvent = "scalable-media-broadcast-demo";
 
 document.getElementById("broadcast-id").innerText = connection.userid;
 
@@ -42,7 +42,7 @@ connection.connectSocket((socket) => {
 
     connection.session = hintsToJoinBroadcast.typeOfStreams;
     connection.sdpConstraints.mandatory = {
-      OfferToReceiveVideo: false,
+      OfferToReceiveVideo: !!connection.session.video,
       OfferToReceiveAudio: !!connection.session.audio,
     };
     connection.broadcastId = hintsToJoinBroadcast.broadcastId;
@@ -53,6 +53,7 @@ connection.connectSocket((socket) => {
     console.log("rejoin-broadcast", broadcastId);
 
     connection.attachStreams = [];
+
     socket.emit(
       "check-broadcast-presence",
       broadcastId,
@@ -72,10 +73,9 @@ connection.connectSocket((socket) => {
   });
 
   socket.on("broadcast-stopped", (broadcastId) => {
-    // alert('Broadcast has been stopped.');
-    // location.reload();
     console.error("broadcast-stopped", broadcastId);
     alert("This broadcast has been stopped.");
+    location.reload();
   });
 
   // this event is emitted when a broadcast is absent.
@@ -100,44 +100,46 @@ window.onbeforeunload = function () {
   document.getElementById("open-or-join").disabled = false;
 };
 
-const audioPreview = document.getElementById("audio-preview");
+const audioContainer = document.getElementById("audio-container");
 
-connection.onstream = function (event) {
-  if (connection.isInitiator && event.type !== "local") {
+connection.onstream = (e) => {
+  if (connection.isInitiator && e.type !== "local") {
     return;
   }
 
+  // What's that ??
   connection.isUpperUserLeft = false;
-  audioPreview.srcObject = event.stream;
-  audioPreview.play();
 
-  audioPreview.userid = event.userid;
+  const audioEl = document.createElement('audio');
+  audioEl.srcObject = e.stream;
+  audioEl.play();
+  audioEl.id = e.userid;
+  audioEl.controls = true;
+  audioContainer.appendChild(audioEl);
 
-  if (event.type === "local") {
-    audioPreview.muted = true;
-  }
+  if (e.type === "local") audioEl.muted = true;
 
-  if (connection.isInitiator == false && event.type === "remote") {
+  if (connection.isInitiator == false && e.type === "remote") {
     // he is merely relaying the media
     connection.dontCaptureUserMedia = true;
-    connection.attachStreams = [event.stream];
+    connection.attachStreams = [e.stream];
     connection.sdpConstraints.mandatory = {
       OfferToReceiveAudio: false,
       OfferToReceiveVideo: false,
     };
 
-    connection.getSocket(function (socket) {
+    connection.getSocket((socket) => {
       socket.emit("can-relay-broadcast");
 
       if (connection.DetectRTC.browser.name === "Chrome") {
-        connection.getAllParticipants().forEach(function (p) {
-          if (p + "" != event.userid + "") {
+        connection.getAllParticipants().forEach((p) => {
+          if (p + "" != e.userid + "") {
             let peer = connection.peers[p].peer;
-            peer.getLocalStreams().forEach(function (localStream) {
+            peer.getLocalStreams().forEach((localStream) => {
               peer.removeStream(localStream);
             });
-            event.stream.getTracks().forEach(function (track) {
-              peer.addTrack(track, event.stream);
+            e.stream.getTracks().forEach((track) => {
+              peer.addTrack(track, e.stream);
             });
             connection.dontAttachStream = true;
             connection.renegotiate(p);
@@ -152,8 +154,8 @@ connection.onstream = function (event) {
         // NOTE: Firefox seems unable to replace-tracks of the remote-media-stream
         // need to ask all deeper nodes to rejoin
         connection.getAllParticipants().forEach(function (p) {
-          if (p + "" != event.userid + "") {
-            connection.replaceTrack(event.stream, p);
+          if (p + "" != e.userid + "") {
+            connection.replaceTrack(e.stream, p);
           }
         });
       }
@@ -162,7 +164,7 @@ connection.onstream = function (event) {
       // WebAudio solution merely records audio
       // so recording is skipped for Firefox.
       if (connection.DetectRTC.browser.name === "Chrome") {
-        repeatedlyRecordStream(event.stream);
+        repeatedlyRecordStream(e.stream);
       }
     });
   }
@@ -177,12 +179,11 @@ connection.onstream = function (event) {
 //document.getElementById("broadcast-id").focus();
 document.getElementById("open-or-join").onclick = () => {
   const broadcastId = document.getElementById("broadcast-id").value;
-  if (broadcastId.replace(/^\s+|\s+$/g, "").length <= 0) {
-    alert("Please enter broadcast-id");
-    return;
-  }
+  if (broadcastId.replace(/^\s+|\s+$/g, "").length <= 0) return alert("Please enter broadcast-id");
 
   document.getElementById("open-or-join").disabled = true;
+
+  document.getElementById("members-counter").innerHTML = "Connecting to the channel..."
 
   connection.extra.broadcastId = broadcastId;
 
@@ -191,13 +192,13 @@ document.getElementById("open-or-join").onclick = () => {
     video: false,
     data: true,
     oneway: true,
-  };
+  }
 
   connection.getSocket((socket) => {
     socket.emit(
       "check-broadcast-presence",
       broadcastId,
-      function (isBroadcastExists) {
+      (isBroadcastExists) => {
         if (!isBroadcastExists) {
           // the first person (i.e. real-broadcaster) MUST set his user-id
           connection.userid = broadcastId;
@@ -215,11 +216,15 @@ document.getElementById("open-or-join").onclick = () => {
   });
 };
 
+connection.onMediaError = (error, constraints) => {
+  alert('Please enable Mic access to use this website')
+}
+
 // we don't need to display message when we reload the page
 // connection.onstreamended = () => {};
 
 connection.onleave = (event) => {
-  if (event.userid !== audioPreview.userid) return;
+  if (event.userid !== audioContainer.userid) return;
 
   connection.getSocket(function (socket) {
     socket.emit("can-not-relay-broadcast");
@@ -252,33 +257,26 @@ connection.onleave = (event) => {
   });
 };
 
-function disableInputButtons() {
-  document.getElementById("open-or-join").disabled = true;
-  document.getElementById("broadcast-id").disabled = true;
-}
-
 // ......................................................
 // ......................Handling broadcast-id...........
 // ......................................................
-
 let broadcastId = "";
 if (localStorage.getItem(connection.socketMessageEvent)) {
   broadcastId = localStorage.getItem(connection.socketMessageEvent);
 } else {
   broadcastId = connection.token();
 }
-var txtBroadcastId = document.getElementById("broadcast-id");
+const txtBroadcastId = document.getElementById("broadcast-id");
 txtBroadcastId.value = broadcastId;
 txtBroadcastId.onkeyup =
   txtBroadcastId.oninput =
   txtBroadcastId.onpaste =
-    () => {
-      localStorage.setItem(connection.socketMessageEvent, this.value);
-    };
+  () => {
+    localStorage.setItem(connection.socketMessageEvent, this.value);
+  };
 
 connection.onNumberOfBroadcastViewersUpdated = (event) => {
-  document.getElementById("members-counter").innerHTML =
-    "Players: <b>" + event.numberOfBroadcastViewers + "</b>";
+  document.getElementById("members-counter").innerHTML = `Currently live with <span class="text-red-700 font-semibold px-2">${event.numberOfBroadcastViewers}</span> players.`;
 };
 
 // ......................................................
@@ -287,7 +285,7 @@ connection.onNumberOfBroadcastViewersUpdated = (event) => {
 let numberOfKeys = 0;
 let lastMessageUUID;
 
-document.getElementById("message-input").onkeyup = function (e) {
+document.getElementById("message-input").onkeyup = (e) => {
   numberOfKeys++;
 
   if (numberOfKeys > 3) numberOfKeys = 0;
@@ -326,6 +324,7 @@ document.getElementById("message-input").onkeyup = function (e) {
       lastMessageUUID,
       true
     );
+
     lastMessageUUID = null;
 
     document.getElementById("message-input").value = "";
@@ -343,6 +342,7 @@ document.getElementById("send-message-button").onclick = () => {
     lastMessageUUID,
     true
   );
+
   lastMessageUUID = null;
 
   document.getElementById("message-input").value = "";
